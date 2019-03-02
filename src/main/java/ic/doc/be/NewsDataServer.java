@@ -22,11 +22,14 @@ public class NewsDataServer extends BackEndWebServer {
                 "Profits Up For Online Retailers"
         );
 
+        private final String warning = "Overloading";
+
         @Override
         public String data() {
             Collections.shuffle(headlines);
             return headlines.get(0);
         }
+
     }
 
     private static int portFrom(String[] args) {

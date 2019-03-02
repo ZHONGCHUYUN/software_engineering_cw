@@ -1,6 +1,16 @@
 package ic.doc.fe;
 
+import ic.doc.be.WeatherDataServer;
 import ic.doc.web.IndexPage;
+import net.secodo.jcircuitbreaker.breaker.CircuitBreaker;
+import net.secodo.jcircuitbreaker.breaker.impl.DefaultCircuitBreaker;
+import net.secodo.jcircuitbreaker.breakhandler.BreakHandler;
+import net.secodo.jcircuitbreaker.breakhandler.impl.NoActionHandler;
+import net.secodo.jcircuitbreaker.breakhandler.impl.ReturnStaticValueHandler;
+import net.secodo.jcircuitbreaker.breakstrategy.BreakStrategy;
+import net.secodo.jcircuitbreaker.breakstrategy.impl.SingleExecutionAllowedStrategy;
+import net.secodo.jcircuitbreaker.exception.TaskExecutionException;
+import net.secodo.jcircuitbreaker.task.VoidTask;
 import org.apache.http.client.fluent.Request;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletHandler;
@@ -13,13 +23,20 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
 public class FrontEndWebServer {
-
     private static final int DEFAULT_PORT = 8080;
 
     private static final String NEWS_URI = "http://localhost:5001/";
     private static final String WEATHER_URI = "http://localhost:5002/";
 
+    private static CircuitBreaker<String> circuitBreaker;
+    private static BreakHandler<String > breakHandler;
+    private static BreakStrategy<String> breakStrategy;
+
     public FrontEndWebServer(int port) throws Exception {
+        this.circuitBreaker = new DefaultCircuitBreaker<>();
+        this.breakStrategy = new SingleExecutionAllowedStrategy<>();
+        this.breakHandler = new ReturnStaticValueHandler<>("Loading, request denies for now.");
+
         Server server = new Server(port);
         ServletHandler handler = new ServletHandler();
         handler.addServletWithMapping(new ServletHolder(new Website()), "/");
@@ -28,7 +45,8 @@ public class FrontEndWebServer {
         server.start();
     }
 
-    static class Website extends HttpServlet {
+    class Website extends HttpServlet {
+
         @Override
         protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
             new IndexPage(retrieveNewsData(), retrieveWeatherData()).writeTo(resp);
@@ -39,8 +57,15 @@ public class FrontEndWebServer {
         }
 
         private String retrieveWeatherData() {
-            return fetchDataFrom(WEATHER_URI);
+            try{
+                return circuitBreaker.execute(() -> fetchDataFrom(WEATHER_URI),breakStrategy, breakHandler);
+            }catch (TaskExecutionException e){
+                throw new RuntimeException(e.getTaskException().getMessage(), e.getTaskException());
+            }
+//            return fetchDataFrom(WEATHER_URI);
         }
+
+
 
         private String fetchDataFrom(String newsUri) {
             try {
@@ -48,6 +73,7 @@ public class FrontEndWebServer {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+
         }
     }
 
@@ -57,6 +83,8 @@ public class FrontEndWebServer {
         }
         return Integer.valueOf(args[0]);
     }
+
+
 
     public static void main(String[] args) throws Exception {
         new FrontEndWebServer(portFrom(args));

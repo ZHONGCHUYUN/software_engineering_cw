@@ -17,8 +17,10 @@ public class WeatherDataServer extends BackEndWebServer {
 
         @Override
         public String data() {
-            return "Latest temp forecast: " + calculateTemperatureForecast() + " celcius";
+           return "Latest temp forecast: " + calculateTemperatureForecast() + " celcius";
+
         }
+
 
         // code here simulates the server getting overloaded when requests come frequently,
         // by adding an artificial delay to the processing of requests
@@ -52,6 +54,9 @@ public class WeatherDataServer extends BackEndWebServer {
                 new RuntimeException(e);
             }
         }
+
+
+
 
         private long currentTime() {
             return System.currentTimeMillis();
